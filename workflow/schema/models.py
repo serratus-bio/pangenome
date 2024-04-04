@@ -183,6 +183,7 @@ class FuncDomainSet(RegionSet):
     accession = StringProperty(unique_index=True)
     annotation = StringProperty()
     std_length = IntegerProperty()
+    pfam_subtype = IntegerProperty()
     hasdownstreamset=RelationshipTo("DomainLinkageSet", "hasDownstreamSet", cardinality=ZeroOrMore, model=HasdownstreamsetRel)
     downstreamsetof=RelationshipFrom("DomainLinkageSet", "hasDownstreamSet", cardinality=ZeroOrMore, model=HasdownstreamsetRel)
     

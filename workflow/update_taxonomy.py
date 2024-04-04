@@ -1,7 +1,7 @@
 # %%
 from neomodel import config, db
 from neomodel.integration.pandas import to_dataframe
-from workflow.schema.models import *
+from schema.models import *
 import pandas as pd
 config.DATABASE_URL = 'bolt://neo4j:WBrtpKCUW28e@44.206.130.87:7687'
 import logging
