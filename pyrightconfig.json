@@ -1,0 +1,16 @@
+{
+  "include": [
+    "*.py",
+    "*.ipynb",
+    "workflow",
+    "Step?/jupyter/*.ipynb"
+  ],
+    "exclude": [
+      "test/**",
+      "LICENSE",
+      "tmp*",
+      "data/**",
+      "*log",
+      "*:genome*",
+    ]
+}

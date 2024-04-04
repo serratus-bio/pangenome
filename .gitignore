@@ -1,0 +1,10 @@
+data
+*log
+*:genome*
+Interactive*
+*err
+*fasta
+**/__pycache__
+csv
+*tsv
+note*
