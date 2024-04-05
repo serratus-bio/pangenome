@@ -75,7 +75,8 @@ def parse_genome_dict(genome_dict:dict):
                          loc['end'],
                          loc['hmmStart'],
                          loc['hmmEnd'],
-                         loc['evalue'])
+                         loc['evalue'],
+                         loc['score'])
                     entry={}
                     entry['genome_name']=genome_dict['results'][0]['crossReferences'][0]['name']#SeqIO.read(infasta,'fasta').name
                     entry['genome_length']=genome_length
@@ -91,6 +92,7 @@ def parse_genome_dict(genome_dict:dict):
                     entry['hmmStart']=data[2]
                     entry['hmmEnd']=data[3]
                     entry['evalue']=data[4]
+                    entry['score']=data[5]
                     entry['domain_annotation']=match_info[1]
                     annotations.append(entry)
           

@@ -18,7 +18,8 @@ class HasregRel(StructuredRel):
     iselemental = IntegerProperty(required=True)
 
 class HasmemberRel(StructuredRel):
-    pass
+    evalue=FloatProperty()
+    score=FloatProperty()
 
 class HasantiRel(StructuredRel):
     pass
@@ -183,7 +184,7 @@ class FuncDomainSet(RegionSet):
     accession = StringProperty(unique_index=True)
     annotation = StringProperty()
     std_length = IntegerProperty()
-    pfam_subtype = IntegerProperty()
+    pfam_subtype = StringProperty()
     hasdownstreamset=RelationshipTo("DomainLinkageSet", "hasDownstreamSet", cardinality=ZeroOrMore, model=HasdownstreamsetRel)
     downstreamsetof=RelationshipFrom("DomainLinkageSet", "hasDownstreamSet", cardinality=ZeroOrMore, model=HasdownstreamsetRel)
     

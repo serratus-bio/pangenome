@@ -9,9 +9,6 @@ from typing import Optional, Dict, List
 import pickle as pkl
 
 # %%
-
-
-# %%
 def update_pfam_type(pfam_type_dicts:List[dict]):
     q='''
             UNWIND $pfam_type_dicts as pfam_type_dict
