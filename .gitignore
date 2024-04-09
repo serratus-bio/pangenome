@@ -8,3 +8,7 @@ Interactive*
 csv
 *tsv
 note*
+test/*/**
+test/s1*
+test/domain*
+test/*sh

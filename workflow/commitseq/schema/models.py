@@ -14,6 +14,9 @@ from typing import Optional
 ### ###    
     
 class HasregRel(StructuredRel):
+    '''
+    
+    '''
     regid = FloatProperty(required=True)
     iselemental = IntegerProperty(required=True)
 
