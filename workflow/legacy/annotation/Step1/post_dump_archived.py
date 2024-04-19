@@ -1,7 +1,7 @@
 # %%
 from neomodel import config, db
 from neomodel.integration.pandas import to_dataframe
-from workflow.schema.models import *
+# from workflow.schema.models import *
 from typing import List
 from tempfile import TemporaryDirectory
 from subprocess import run

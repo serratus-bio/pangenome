@@ -11,7 +11,7 @@ import pandas as pd
 from typing import Optional
 # clear_neo4j_database(db,clear_constraints=True,clear_indexes=True)
 
-### ###    
+# %%
     
 class HasregRel(StructuredRel):
     '''
