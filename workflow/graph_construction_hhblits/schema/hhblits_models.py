@@ -44,16 +44,35 @@ class hasDownstream(StructuredRel):
 class hasMember(StructuredRel):
     '''
     Between HitFamily and Hit
+    Check here for detailed description:
+    github.com/soedinglab/hh-suite/wiki#hhsearchhhblits-output-hit-list-and-pairwise-alignments
     '''
-    template_neff=FloatProperty(required=True)
-    probab=FloatProperty(required=True)
-    identities=FloatProperty(required=True)
-    similarity=FloatProperty(required=True)
-    e_value=FloatProperty(required=True)
-    p_value=FloatProperty(required=True)
-    aligned_cols=FloatProperty(required=True)
-    score=FloatProperty(required=True)
-    sum_probs=FloatProperty(required=True)
+    template_neff=FloatProperty(required=True,
+        help_text='The number of effective sequences of the full alignment')
+    probab=FloatProperty(required=True,
+        help_text=('the Probability of template to be a true positive. '
+                   'This is the weighted, final score for a hit ranging from 0~1.'))
+    identities=FloatProperty(required=True,
+        help_text=('give the percentage of aligned residue pairs '
+                   'of the query and the template master sequences that are identical.'
+                   'Note! Seems to be useless for our multi-domain searching task.'))
+    similarity=FloatProperty(required=True,
+        help_text=('the arithmetic mean of the substitution scores '
+                   'between the aligned residue pairs from the query and template master sequences. '
+                   'Note! Seems to be useless as it is about the master sequence instead of profile'))
+    e_value=FloatProperty(required=True,
+        help_text=('the random background noise.'
+                   'in a database of the same size one expects to see this number of match '
+                   'with a similar score, or higher, simply by chance'))
+    p_value=FloatProperty(required=True,
+        help_text=('the E-value divided by the number of sequences in the database. '
+                   'It is the probability that in a pairwise comparison a wrong hit will score at least this good.'))
+    aligned_cols=FloatProperty(required=True,
+        help_text=('the number of aligned Match columns in the HMM-HMM alignment.'))
+    score=FloatProperty(required=True,
+        help_text=('the raw score, computed by the Viterbi HMM-HMM alignment excluding the secondary structure score.'))
+    sum_probs=FloatProperty(required=True,
+        help_text='the raw score is computed by the Viterbi HMM-HMM alignment excluding the secondary structure score.')
     
 
 class hasAffiliate(StructuredRel):

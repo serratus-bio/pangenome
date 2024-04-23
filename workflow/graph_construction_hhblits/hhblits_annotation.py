@@ -31,7 +31,7 @@ from itertools import combinations,tee
 # %%
 from .schema.hhblits_models import Fasta,Hit,HitFamily,HitRegion
 from .schema.hhblits_models import (hasHit,hasRegion,
-    hasDownstream,hasAnalog,hasMember,hasAffiliate,hasSynteny)
+    hasDownstream,hasAnalog,hasMember,hasAffiliate)
 from functools import partial
 from neomodel.relationship_manager import RelationshipManager,_rel_helper
 from neomodel import StructuredNode
