@@ -6,3 +6,4 @@
 # temp files
 **/dataset**
 **/*.pkl**
+**/checkpoint**
