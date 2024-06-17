@@ -13,7 +13,7 @@ That's why we have the tmp scripts to run them as separated stages
 # %%
 # %load_ext autoreload
 # %autoreload 2
-from typing import Dict,Tuple,List,Union
+from typing import Dict,Tuple,List,Union,Optional
 import pandas as pd
 import numpy as np
 from subprocess import run
@@ -29,8 +29,8 @@ from neomodel.integration.pandas import to_dataframe
 import networkx as nx
 from itertools import combinations,tee
 # %%
-from .schema.hhblits_models import Fasta,Hit,HitFamily,HitRegion
-from .schema.hhblits_models import (hasHit,hasRegion,
+from .schema.hhblits_models import Fasta,Hit,HitFamily,HitRegion,Genome
+from .schema.hhblits_models import (hasHit,hasRegion,hasFasta,
     hasDownstream,hasAnalog,hasMember,hasAffiliate)
 from functools import partial
 from neomodel.relationship_manager import RelationshipManager,_rel_helper
@@ -40,12 +40,14 @@ from neomodel import StructuredNode
 Path(__file__).parent
 GENID_TAXONOMY_DICT:Dict[str,str]=pkl.load(open(Path(__file__).parent/'../../data/genid_taxonomy_dict.pkl','rb'))
 PFAM_TYPE_DICT:Dict[str,str]=pkl.load(open(Path(__file__).parent/'../../data/pfam_type_dict.pkl','rb'))
+GENOME_ACCESSION_DICT:Dict[str,str]=pkl.load(open(Path(__file__).parent/'../../data/access_group_dict.pkl','rb'))
 logger=logging.getLogger()
 
 # %% run orfipy
 def run_orfipy(infile:str,minlen:int=900,
            cpu:int=1,table:int=9,
-           conda_env:str='/home/hugheslab1/zfdeng/miniconda3/envs/n4j/'
+           conda_env:str='/home/hugheslab1/zfdeng/miniconda3/envs/n4j/',
+           wdir:Optional[str]=None
            )->List[SeqRecord]:
     '''
     orfipy: ORF finder
@@ -55,19 +57,27 @@ def run_orfipy(infile:str,minlen:int=900,
         ref: https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi?chapter=cgencodes
     
     '''
-    with TemporaryDirectory() as tempdir:
-        o=run([
-            'conda','run',
-            '-p',conda_env,
-            'orfipy',Path(infile).absolute(),
-            '--pep','pep.fa',
-            '--min', f'{minlen}',
-            '--max', '1000000',
-            '--procs', f'{cpu}','--table',
-            f'{table}','--outdir','orfs_out',
-            '--ignore-case','--between-stops'
-        ],capture_output=True,cwd=tempdir)
-        return list(parse(f'{tempdir}/orfs_out/pep.fa','fasta'))
+    if wdir is None:
+        t=TemporaryDirectory()
+        wdir=t.name
+    else:
+        t=None
+        
+    o_=run([
+        'conda','run',
+        '-p',conda_env,
+        'orfipy',Path(infile).absolute(),
+        '--pep','pep.fa',
+        '--min', f'{minlen}',
+        '--max', '1000000',
+        '--procs', f'{cpu}','--table',
+        f'{table}','--outdir','orfs_out',
+        '--ignore-case','--between-stops'
+    ],capture_output=True,cwd=wdir)
+    o=list(parse(f'{wdir}/orfs_out/pep.fa','fasta'))
+    if t is not None:
+        t.cleanup()
+    return o
 
 
 # TODO misc
@@ -110,7 +120,8 @@ def parse_orfipy_description(description:str):
 # %% run hhblits 
 def run_hhblits(infile:Union[Path,str,SeqRecord],cpu:int=4,
             blitsbin:str='/home/hugheslab1/zfdeng/pangengraph/hh-suite/build/src/hhblits',
-            blitsdb:str='/home/hugheslab1/zfdeng/pangengraph_2/hhs-db/pfam'
+            blitsdb:str='/home/hugheslab1/zfdeng/pangengraph_2/hhs-db/pfam',
+            wdir:Optional[str]=None
             ):
     '''
     run annotation with hhblits
@@ -120,17 +131,62 @@ def run_hhblits(infile:Union[Path,str,SeqRecord],cpu:int=4,
     aligns_list: dict, hit alignments
     '''
     # infile='tmp/AAbV||GBBW01007738#2s#11629#11886.fasta'
-    with TemporaryDirectory() as tempdir:
-        if isinstance(infile,SeqRecord):
-            infile_path=f'{tempdir}/infile.fasta'
-            write(infile,infile_path,'fasta')
-        else:
-            infile_path=Path(infile).absolute()
-        o=run([blitsbin,'-i',infile_path,'-d',blitsdb,'-cpu',str(cpu),'-o','out.hhr','-hide_pred','-hide_dssp'],
-            capture_output=True,cwd=tempdir)
-        return parse_hhr(f'{tempdir}/out.hhr')
-        #,'-o','hahaha.hhr'
+    if wdir is None:
+        t=TemporaryDirectory()
+        wdir=t.name
+    else:
+        t=None
+        
+    if isinstance(infile,SeqRecord):
+        infile_path=f'{wdir}/infile.fasta'
+        write(infile,infile_path,'fasta')
+    else:
+        infile_path=Path(infile).absolute()
+    o_=run([blitsbin,'-i',infile_path,'-d',blitsdb,'-cpu',str(cpu),'-o','out.hhr','-hide_pred','-hide_dssp'],
+        capture_output=True,cwd=wdir)
+    o=parse_hhr(f'{wdir}/out.hhr')
+    if t is not None:
+        t.cleanup()
+    return o
 
+def run_hhalign(qfile:Union[Path,str,SeqRecord],
+            tfile:Union[Path,str,SeqRecord],
+            alignbin:str='/home/hugheslab1/zfdeng/pangengraph/hh-suite/build/src/hhalign',
+            cpu:int=4,
+            wdir:Optional[str]=None
+            ):
+    '''
+    run annotation with hhblits
+    return 
+    meta: dict, file head of metadata
+    hits: pd.DataFrame, hit summary scores
+    aligns_list: dict, hit alignments
+    '''
+    # infile='tmp/AAbV||GBBW01007738#2s#11629#11886.fasta'
+    if wdir is None:
+        t=TemporaryDirectory()
+        wdir=t.name
+    else:
+        t=None
+        
+    if isinstance(qfile,SeqRecord):
+        qfile_path=f'{wdir}/qfile.fasta'
+        write(qfile,qfile_path,'fasta')
+    else:
+        qfile_path=Path(qfile).absolute()
+        
+    if isinstance(tfile,SeqRecord):
+        tfile_path=f'{wdir}/tfile.fasta'
+        write(tfile,tfile_path,'fasta')
+    else:
+        tfile_path=Path(tfile).absolute()
+        
+    o_=run([alignbin,'-i',qfile_path,'-t',tfile_path,'-cpu',str(cpu),'-o','out.hhr','-hide_pred','-hide_dssp'],
+        capture_output=True,cwd=wdir)
+    o=parse_hhr(f'{wdir}/out.hhr')
+    if t is not None:
+        t.cleanup()
+    return o
 
 def orfindice_to_fastaindice(
     trans_begin:int,trans_end:int,strand:str,orf_begin:int,orf_end:int):
@@ -193,40 +249,49 @@ def parse_hhr(hhr:str)->Tuple[Dict[str,str],pd.DataFrame,List[dict]]:
             elif current_section=='hits':
                 hits_list.append(split_hits_line(line))
             elif current_section=='aligns':
+                def add_align():
+                    left,right=tb-1,model_length-te
+                    tleft,tright=qb-1,model_length-qe
+                    q_align_array=np.array(list(q_align),dtype=str)
+                    t_align_array=np.array(list(t_align),dtype=str)
+                    ins=np.where(t_align_array=='-')[0]
+                    ins_q=np.where(q_align_array=='-')[0]
+                    if len(ins)>0:
+                        q_align_array[ins]=np.vectorize(lambda x:x.lower())(q_align_array[ins])
+                    q_align_array=''.join(np.hstack([robust_full(left,'-'),q_align_array,robust_full(right,'-')]))
+                    
+                    if len(ins_q)>0:
+                        t_align_array[ins_q]=np.vectorize(lambda x:x.lower())(t_align_array[ins_q])
+                    t_align_array=''.join(np.hstack([robust_full(left,'-'),t_align_array,robust_full(right,'-')]))
+                    
+                    consensus_array=''.join(np.hstack([robust_full(left,' '),
+                        np.array(list(consensus),dtype=str),robust_full(right,' ')]))
+                    #
+                    align_meta['P-value']=hits['P-value'][current_hit-1]
+                    # DON'T Delete it. It's the original parse result
+                    # aligns_list.append(dict(
+                    #     align_meta=align_meta,
+                    #     q_align=q_align,
+                    #     t_align=t_align,
+                    #     consens=consensus,
+                    #     qb=qb,qe=qe,tb=tb,te=te,
+                    #     model_length=model_length
+                    # ))
+                    aligns_list.append(dict(
+                        align_meta=align_meta,
+                        q_align=q_align_array,
+                        t_align=t_align_array,
+                        consens=consensus_array,
+                        query_begin=qb,query_end=qe,
+                        target_begin=tb,target_end=te,
+                        model_length=model_length
+                    ))
                 if line.startswith('No '):
                     #wrap last hit
                     if current_hit>0:
                         #
-                        left,right=tb-1,model_length-te
-                        q_align_array=np.array(list(q_align),dtype=str)
-                        t_align_array=np.array(list(t_align),dtype=str)
-                        ins=np.where(t_align_array=='-')[0]
-                        if len(ins)>0:
-                            q_align_array[ins]=np.vectorize(lambda x:x.lower())(q_align_array[ins])
-                        q_align_array=''.join(np.hstack([robust_full(left,'-'),q_align_array,robust_full(right,'-')]))
-                        consensus_array=''.join(np.hstack([robust_full(left,' '),
-                            np.array(list(consensus),dtype=str),robust_full(right,' ')]))
-                        #
-                        align_meta['P-value']=hits['P-value'][current_hit-1]
-                        #
-                        aligns_list.append(dict(
-                            align_meta=align_meta,
-                            q_align=q_align_array,
-                            consens=consensus_array,
-                            query_begin=qb,query_end=qe,
-                            target_begin=tb,target_end=te,
-                            model_length=model_length
-                        ))
-                        # DON'T Delete it. It's the original parse result
-                        # aligns_list.append(dict(
-                        #     align_meta=align_meta,
-                        #     q_align=q_align,
-                        #     t_align=t_align,
-                        #     consens=consensus,
-                        #     qb=qb,qe=qe,tb=tb,te=te,
-                        #     model_length=model_length
-                        # ))
-
+                        add_align()
+                        
                     #init this hit
                     current_hit=int(line.strip().replace('No ',''))
                     align_meta={}
@@ -262,6 +327,7 @@ def parse_hhr(hhr:str)->Tuple[Dict[str,str],pd.DataFrame,List[dict]]:
                     t_align+=s3
                     if model_length==0:
                         model_length=int(s5[1:-1])
+        add_align()
     return meta,hits,aligns_list
 
 
@@ -310,7 +376,7 @@ def hhblits_annotation(infasta:str,cpu:int=4):
     stem=Path(infasta).stem.replace(':genome','')
     orfs=run_orfipy(infasta,cpu=cpu)
     if len(orfs)<1:
-        logger.error(f'no valid segments: {stem}')
+        logger.error(f'{stem}:no valid segments')
         return pd.DataFrame()
     o=[]
     for orf in orfs:
@@ -321,11 +387,11 @@ def hhblits_annotation(infasta:str,cpu:int=4):
         # return description_dict,aligns
         for align in aligns:
             o.append(merge_align_info(align,description_dict))
-    return pd.DataFrame(o).sort_values(by='begin')
+    return pd.DataFrame(o).sort_values(by='begin').reset_index(drop=True)
 
 
 # %%
-def initial_group_hit(annotations:pd.DataFrame,threshold:float=0.8):
+def initial_group_hit(annotations:pd.DataFrame,threshold:float=0.8,stem:str=''):
     ''''
     first discard hit whose `probab` is lower than `threshold`
     then group them by their overlaps
@@ -345,7 +411,7 @@ def initial_group_hit(annotations:pd.DataFrame,threshold:float=0.8):
         subg['group_end'] = subg.groupby('group_id')['end'].transform('max')
         if not ((subg.groupby('group_id')['group_end'].first().to_numpy()[1:
             ]-subg.groupby('group_id')['group_begin'].first().to_numpy()[:-1])>0).all():
-            logger.error(f'abnormal grouping: \n{subg[['begin','end','group_begin','group_end']]}')
+            logger.error(f'{stem}:abnormal grouping: \n{subg[['begin','end','group_begin','group_end']]}')
         o.append(subg)
     # print(o)
     # import pdb; pdb.set_trace()
@@ -380,7 +446,7 @@ def merge_pair(pairs:List[tuple])->List[set]:
     return list(nx.connected_components(g))
 
 
-def mend_pesudo_double_hit(annotations:pd.DataFrame,
+def mend_pesudo_double_hit(annotations:pd.DataFrame,stem:str='',
         overlap_threshold:float=0.8,group_id:str='group_id'):
     '''
     temperary
@@ -388,7 +454,7 @@ def mend_pesudo_double_hit(annotations:pd.DataFrame,
     mend_pairs=[]
     for hitannot,subg in annotations.groupby('hitannot'):
         if len(subg)>1 and len(subg[group_id].unique())>1:
-            logger.warning(f'`{hitannot}` has same hit across groups: {subg[group_id].unique()}')
+            logger.warning(f'{stem}:`{hitannot}` has same hit across groups: {subg[group_id].unique()}')
             subg['theory_begin']=subg['begin']-(subg['hit_begin']-1)*3
             subg['theory_end']=subg['end']+(subg['model_length']-subg['hit_end'])*3
             for i in range(len(subg)):
@@ -396,19 +462,19 @@ def mend_pesudo_double_hit(annotations:pd.DataFrame,
                     inter_rat=interval_ratio(subg.iloc[i],subg.iloc[j])
                     if (subg.iloc[i][group_id]!=subg.iloc[j][group_id]
                         ):
+                        group_to_merge=(subg.iloc[i][group_id],subg.iloc[j][group_id])
                         if inter_rat>overlap_threshold:
-                            group_to_merge=(subg.iloc[i][group_id],subg.iloc[j][group_id])
-                            logger.warning((f'`{hitannot}` indicates group {group_to_merge} should be merged '
+                            logger.warning((f'{stem}:`{hitannot}` indicates group {group_to_merge} should be merged '
                                             f'with interval_ratio of {inter_rat:.2f}'))
                             mend_pairs.append(group_to_merge)
                         else:
-                            logger.warning((f"`{hitannot}` doesn't indicate group {group_to_merge} should be merged though double-hit,"
+                            logger.warning((f"{stem}:`{hitannot}` doesn't indicate group {group_to_merge} should be merged though double-hit,"
                                             f'with interval_ratio of {inter_rat:.2f}'))
                         
     return mend_pairs
 
 
-def merge_group(annotations:pd.DataFrame,pairs:List[set]):
+def merge_group(annotations:pd.DataFrame,pairs:List[set],stem:str=''):
     if len(pairs)==0:
         return annotations
     else:
@@ -427,7 +493,7 @@ def merge_group(annotations:pd.DataFrame,pairs:List[set]):
     last_group_id=0
     for pair in pairs:
         merge_begin,merge_end=min(pair),max(pair)
-        logger.warning(f'group {merge_begin}-{merge_end} would be merged.')
+        logger.warning(f'{stem}:group {merge_begin}-{merge_end} would be merged.')
         new_group_map.update({i:e+last_group_id for e,i in enumerate(range(last_merge_end+1,merge_begin))})
         new_group_be.update({e+last_group_id:(group_b[i],group_e[i]) for e,i in enumerate(range(last_merge_end+1,merge_begin))})
         new_group_map.update({i:last_group_id+merge_begin-last_merge_end-1 for i in pair})
@@ -450,15 +516,23 @@ def merge_group(annotations:pd.DataFrame,pairs:List[set]):
     # return mend_pair
 
 
-def group_hit(annotations:pd.DataFrame,threshold:float=0.8):
-    grouped_annotations=initial_group_hit(annotations,threshold)
-    pairs=mend_pesudo_double_hit(grouped_annotations)
-    grouped_annotations=merge_group(grouped_annotations,pairs)
-    return grouped_annotations
+def group_hit(annotations:pd.DataFrame,threshold:float=0.8,stem:str=''):
+    '''
+    annotations: from `hhblits_annotation`
+    threshold: prob filter to keep only high-confident hits
+    stem: optional, fasta's name for logging 
+    '''
+    grouped_annotations=initial_group_hit(annotations,threshold,stem)
+    pairs=mend_pesudo_double_hit(grouped_annotations,stem)
+    grouped_annotations=merge_group(grouped_annotations,pairs,stem)
+    return grouped_annotations.reset_index(drop=True)
 
 
 #%% commit to neo4j
-def generate_neomodels(infasta:str,annotations:pd.DataFrame):
+def generate_neomodels(infasta:str,annotations:Optional[pd.DataFrame]=None):
+    def to_genome_dict(accession:str):
+        return dict(genome_accession=GENOME_ACCESSION_DICT[accession])
+    
     def to_hitfamily_dict(hitrow:pd.Series):
         hitannot=hitrow['hitannot']
         model_length=hitrow['model_length']
@@ -482,7 +556,7 @@ def generate_neomodels(infasta:str,annotations:pd.DataFrame):
         hit_dict['aligned_consensus']=hit_dict.pop('align_consensus')
         
         pfam_name=hitrow['hitannot'].split(';')[1].strip()
-        name=f'{fasta_name}:{pfam_name}:{hit_dict['begin']}'
+        name=f'{fasta_name}:{pfam_name}:{hit_dict['begin']}~{hit_dict['end']}'
         hit_dict['name']=name
         return hit_dict
 
@@ -497,21 +571,31 @@ def generate_neomodels(infasta:str,annotations:pd.DataFrame):
     name=Path(infasta).stem.split(':')[0]
     accession=name.split('|')[-1]
     taxonomy=GENID_TAXONOMY_DICT.get(accession,None)
+    if taxonomy is None:
+        logger.error(f'{name} has no taxonomy')
     fasta_dict=dict(
         name=name,
-        source='GenBank',
+        source='ICTV',#'GenBank',
         seq=str(read(infasta,'fasta').seq),
         accession=accession,
         taxonomy=taxonomy
         )
-    annotations['fasta']=Fasta.create_or_update(
-        *[fasta_dict]*len(annotations))
-    hitfamily_dicts=annotations.apply(to_hitfamily_dict,axis=1)
-    annotations['hitfamily']=HitFamily.create_or_update(*hitfamily_dicts)
-    hit_dicts=annotations.apply(partial(to_hit_dict,fasta_name=name),axis=1)
-    annotations['hit']=Hit.create_or_update(*hit_dicts)
-    hitregion_dicts=annotations.apply(partial(to_hitregion_dict,fasta_name=name),axis=1)
-    annotations['hitregion']=HitRegion.create_or_update(*hitregion_dicts)
+    if annotations is not None:
+        annotations['fasta']=Fasta.create_or_update(
+            *[fasta_dict]*len(annotations))
+        #TODO maybe put somewhere else (e.g. during creation of Fasta)?
+        genome=Genome.create_or_update(to_genome_dict(accession))[0]
+        genome.fastas.connect(annotations.iloc[0]['fasta'])
+        hitfamily_dicts=annotations.apply(to_hitfamily_dict,axis=1)
+        annotations['hitfamily']=HitFamily.create_or_update(*hitfamily_dicts)
+        hit_dicts=annotations.apply(partial(to_hit_dict,fasta_name=name),axis=1)
+        annotations['hit']=Hit.create_or_update(*hit_dicts)
+        hitregion_dicts=annotations.apply(partial(to_hitregion_dict,fasta_name=name),axis=1)
+        annotations['hitregion']=HitRegion.create_or_update(*hitregion_dicts)
+    else:
+        fasta=Fasta.create_or_update(fasta_dict)[0]
+        genome=Genome.create_or_update(to_genome_dict(accession))[0]
+        genome.fastas.connect(fasta)
 
 
 def reconnect(relationship:RelationshipManager,node:StructuredNode,props:dict=None):
@@ -584,22 +668,26 @@ def connect_hitregion(annotations:pd.DataFrame):
 
 # %%
 def main(infasta:str,cpu:int=8,threshold=0.8):
+    stem=Path(infasta).stem
     annotations=hhblits_annotation(infasta,cpu)
     # annotations:pd.DataFrame=pd.read_pickle('../../data/annotations.pkl')
     if len(annotations)<1:
-        logger.warning(f'BREAK! no hit for "{infasta}"')
-        return
-    if len(annotations[annotations['probab']>threshold])<1:
-        logger.warning(f'no valid hit for "{infasta}"')
+        logger.warning(f'{stem}: no hit')
+        grouped_annotations = None
+    elif len(annotations[annotations['probab']>threshold])<1:
         max_probab=annotations['probab'].max()
-        logger.warning(f'max_probab: "{max_probab}"')
-        return
-    grouped_annotations=group_hit(annotations,threshold)
+        logger.warning(f'{stem}: no valid hit, max_probab: {max_probab:.2f}')
+        grouped_annotations = None
+    else:
+        grouped_annotations=group_hit(annotations,threshold)
+        
     generate_neomodels(infasta,grouped_annotations)
-    connect_hit(grouped_annotations)
-    connect_hitregion(grouped_annotations)
+    if grouped_annotations is not None:
+        connect_hit(grouped_annotations)
+        connect_hitregion(grouped_annotations)
     return grouped_annotations
 
+        
 
 # %%
 if __name__=='__main__':

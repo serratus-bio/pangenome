@@ -102,6 +102,11 @@ class hasFasta(StructuredRel):
     '''
     pass
 # %%
+# class Species(StructuredNode):
+#     species_accession = StringProperty(required=True,unique_index=True,
+#             help_text='Fasta are put in the same entry of VMR are indexed by the first genbank id of it.')
+#     fastas=RelationshipTo("Species","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
+    
 class Fasta(StructuredNode):
     '''
     Root node of one nt sequence 
@@ -115,7 +120,7 @@ class Fasta(StructuredNode):
     taxonomy = StringProperty(help_text=f'semicolon separated taxonomy, order:{TAXO_ORDER}')
     hits = RelationshipTo("Hit", "hasHit", cardinality=ZeroOrMore, model=hasHit)
     regions = RelationshipTo("HitRegion", "hasRegion", cardinality=OneOrMore, model=hasRegion)
-
+    genome = RelationshipFrom("Genome","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
 
 class Genome(StructuredNode):
     '''
@@ -123,7 +128,10 @@ class Genome(StructuredNode):
     a set of fasta to define the genome of a species
     Not Impletemented
     '''
-    __abstract_node__ = True
+    genome_accession = StringProperty(required=True,unique_index=True,
+            help_text='Fasta are put in the same entry of VMR are indexed by the first genbank id of it.')
+    fastas=RelationshipTo("Fasta","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
+    # __abstract_node__ = True
     #hasFasta
 
 

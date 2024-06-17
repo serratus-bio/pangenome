@@ -12,3 +12,4 @@ test/*/**
 test/s1*
 test/domain*
 test/*sh
+tmp*
