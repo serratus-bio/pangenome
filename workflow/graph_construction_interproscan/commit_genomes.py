@@ -16,7 +16,7 @@ from tqdm import tqdm
 import logging 
 from neomodel.integration.pandas import to_dataframe
 logger=logging.getLogger()
-config.DATABASE_URL = 'bolt://neo4j:WBrtpKCUW28e@44.206.130.87:7687'
+config.DATABASE_URL = 'bolt://neo4j:YeLEtoRkhame@35.174.232.151:7687'
 import sys
 from glob import glob
 
@@ -24,6 +24,7 @@ logging.basicConfig(filename='dump.log',
                     filemode='a',           
                     level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 # %%
 def interproscan(infasta:str,
@@ -62,42 +63,42 @@ def iter_match(genome_dict:dict)->Generator[Tuple[dict,dict],None,None]:
             yield (orf,match)
 
 def parse_genome_dict(genome_dict:dict):
-     genome_length=len(genome_dict['results'][0]['sequence'])
-     annotations=[]
-     for orf,match in iter_match(genome_dict):
-          orf_info=orf['start'],orf['end'],orf['strand']
-          match_info=(match['signature']['accession'],
-                    f"{match['signature']['name']}:{match['signature']['description']}",
-                    match['signature']['signatureLibraryRelease']['library'])
-          if match_info[2]=='PFAM': #'PROSITE_PROFILES'
-               for loc in match['locations']:
-                    data=(loc['start'],
-                         loc['end'],
-                         loc['hmmStart'],
-                         loc['hmmEnd'],
-                         loc['evalue'],
-                         loc['score'])
-                    entry={}
-                    entry['genome_name']=genome_dict['results'][0]['crossReferences'][0]['name']#SeqIO.read(infasta,'fasta').name
-                    entry['genome_length']=genome_length
-                    entry['domain_accession']=match_info[0]
-                    
-                    entry['strand']=orf_info[2]
-                    if entry['strand']=='SENSE':
-                         entry['start']=orf_info[0]+data[0]*3
-                         entry['end']=orf_info[0]+data[1]*3
-                    else:
-                         entry['start']=orf_info[1]-data[1]*3
-                         entry['end']=orf_info[1]-data[0]*3
-                    entry['hmmStart']=data[2]
-                    entry['hmmEnd']=data[3]
-                    entry['evalue']=data[4]
-                    entry['score']=data[5]
-                    entry['domain_annotation']=match_info[1]
-                    annotations.append(entry)
-          
-     domains=pd.DataFrame(annotations)
-     return domains
+    genome_length=len(genome_dict['results'][0]['sequence'])
+    annotations=[]
+    for orf,match in iter_match(genome_dict):
+        orf_info=orf['start'],orf['end'],orf['strand']
+        match_info=(match['signature']['accession'],
+                f"{match['signature']['name']}:{match['signature']['description']}",
+                match['signature']['signatureLibraryRelease']['library'])
+        if match_info[2]=='PFAM': #'PROSITE_PROFILES'
+            for loc in match['locations']:
+                data=(loc['start'],
+                        loc['end'],
+                        loc['hmmStart'],
+                        loc['hmmEnd'],
+                        loc['evalue'],
+                        loc['score'])
+                entry={}
+                entry['genome_name']=genome_dict['results'][0]['crossReferences'][0]['name']#SeqIO.read(infasta,'fasta').name
+                entry['genome_length']=genome_length
+                entry['domain_accession']=match_info[0]
+                
+                entry['strand']=orf_info[2]
+                if entry['strand']=='SENSE':
+                        entry['start']=orf_info[0]+data[0]*3
+                        entry['end']=orf_info[0]+data[1]*3
+                else:
+                        entry['start']=orf_info[1]-data[1]*3
+                        entry['end']=orf_info[1]-data[0]*3
+                entry['hmmStart']=data[2]
+                entry['hmmEnd']=data[3]
+                entry['evalue']=data[4]
+                entry['score']=data[5]
+                entry['domain_annotation']=match_info[1]
+                annotations.append(entry)
+        
+    domains=pd.DataFrame(annotations)
+    return domains
  
 # %%
 def get_seq(k:str,fasta_dir='CoreData/genome_fasta'):
