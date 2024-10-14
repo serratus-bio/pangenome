@@ -12,5 +12,12 @@
       "data/**",
       "*log",
       "*:genome*",
+      "*json",
+      "*fasta",
+      "*yaml",
+      "*csv",
+      "*tsv",
+      "tmp*/**",
+      "output/**"
     ]
 }

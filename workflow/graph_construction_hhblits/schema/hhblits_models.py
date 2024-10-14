@@ -102,26 +102,20 @@ class hasFasta(StructuredRel):
     '''
     pass
 # %%
-# class Species(StructuredNode):
-#     species_accession = StringProperty(required=True,unique_index=True,
-#             help_text='Fasta are put in the same entry of VMR are indexed by the first genbank id of it.')
-#     fastas=RelationshipTo("Species","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
-    
 class Fasta(StructuredNode):
     '''
     Root node of one nt sequence 
     '''
-    name = StringProperty(required=True,unique_index=True)
-    source = StringProperty(required=True)
+    accession = StringProperty(required=True,unique_index=True)
+    source = StringProperty(required=True,
+            help_text='source of fasta sequence. GenBank,Logan,...')
     seq = StringProperty(required=True)
-    accession = StringProperty(required=True)
     annotation = StringProperty()
     circular = BooleanProperty(default=False,help_text='if the fasta is a circular fasta')
-    taxonomy = StringProperty(help_text=f'semicolon separated taxonomy, order:{TAXO_ORDER}')
     hits = RelationshipTo("Hit", "hasHit", cardinality=ZeroOrMore, model=hasHit)
     regions = RelationshipTo("HitRegion", "hasRegion", cardinality=OneOrMore, model=hasRegion)
     genome = RelationshipFrom("Genome","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
-
+    
 class Genome(StructuredNode):
     '''
     To be implemented
@@ -131,6 +125,10 @@ class Genome(StructuredNode):
     genome_accession = StringProperty(required=True,unique_index=True,
             help_text='Fasta are put in the same entry of VMR are indexed by the first genbank id of it.')
     fastas=RelationshipTo("Fasta","hasFasta",cardinality=ZeroOrMore,model=hasFasta)
+    taxonomy = StringProperty(help_text=f'semicolon separated taxonomy, order:{TAXO_ORDER}')
+    name = StringProperty(help_text='name string from the genome source')
+    source = StringProperty(required=True,
+                help_text='source of species definiction. NCBI-VIRUS, VMR, ...')
     # __abstract_node__ = True
     #hasFasta
 

@@ -508,7 +508,8 @@ def merge_group(annotations:pd.DataFrame,pairs:List[set],stem:str=''):
     annotations['group_id']=annotations['group_id'].map(new_group_map)
     annotations['group_begin']=annotations['group_id'].map(lambda x: new_group_be[x][0])
     annotations['group_end']=annotations['group_id'].map(lambda x: new_group_be[x][1])
-    
+    annotations['rep']=False
+    annotations.loc[annotations.groupby(by='group_id')['sum_probs'].idxmax().values,'rep']=True
     return annotations
     # new_group_map
         
@@ -565,7 +566,8 @@ def generate_neomodels(infasta:str,annotations:Optional[pd.DataFrame]=None):
         hitregion_dict={}
         hitregion_dict['begin']=hitrow['group_begin']
         hitregion_dict['end']=hitrow['group_end']
-        hitregion_dict['name']=f'{fasta_name}:{hitrow['group_id']}:{hitrow['group_begin']}'
+        hitregion_dict['name']=(f'{fasta_name}:{hitrow['group_id']}:'
+                                f'{hitrow['group_begin']}~{hitrow['group_ned']}')
         return hitregion_dict
 
     name=Path(infasta).stem.split(':')[0]
@@ -573,6 +575,7 @@ def generate_neomodels(infasta:str,annotations:Optional[pd.DataFrame]=None):
     taxonomy=GENID_TAXONOMY_DICT.get(accession,None)
     if taxonomy is None:
         logger.error(f'{name} has no taxonomy')
+    o={}
     fasta_dict=dict(
         name=name,
         source='ICTV',#'GenBank',
@@ -580,6 +583,17 @@ def generate_neomodels(infasta:str,annotations:Optional[pd.DataFrame]=None):
         accession=accession,
         taxonomy=taxonomy
         )
+    has_annot= (annotations is not None)
+    genome_dict=to_genome_dict(accession)
+    hit_count = len(annotations) if has_annot else 0
+    o['fasta_meta']=(genome_dict,fasta_dict,hit_count)
+    
+    if has_annot:
+        hitfamily_dicts=annotations.apply(to_hitfamily_dict,axis=1)
+        hit_dicts=annotations.apply(partial(to_hit_dict,fasta_name=name),axis=1)
+        hitregion_dicts=annotations.apply(partial(to_hitregion_dict,fasta_name=name),axis=1)
+        
+    
     if annotations is not None:
         annotations['fasta']=Fasta.create_or_update(
             *[fasta_dict]*len(annotations))

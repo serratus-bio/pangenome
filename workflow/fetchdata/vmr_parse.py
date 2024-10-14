@@ -1,3 +1,4 @@
+# %%
 from Bio import SeqIO
 from pathlib import Path
 from Bio import Entrez
@@ -12,6 +13,7 @@ import re
 import xmltodict
 Entrez.email='zfevan.deng@mail.utoronto.ca'
 
+# %%
 def fetch_parse(i:str):
     '''
     i: genbank accession
@@ -108,3 +110,6 @@ def group_genbankid(access_series:pd.Series):
             for v in i.values():
                 id_groups[v]=genbank_id
     return id_groups
+
+# %%
+# vmr=pd.read_csv(Path(__file__).parent/'VMR_MSL39_v1.csv')
